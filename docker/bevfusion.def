@@ -1,0 +1,70 @@
+Bootstrap: docker
+From: nvidia/cuda:11.3.1-devel-ubuntu20.04
+
+%labels
+    Author  ChunqiuXia
+    Version bevfusion-cuda11.3-py38-torch1.10
+    Description "BEVFusion env: CUDA 11.3 + PyTorch 1.10.1 + Python 3.8 (Miniconda)"
+
+%environment
+    # 运行时生效的环境变量
+    export DEBIAN_FRONTEND=noninteractive
+    export CONDA_DIR=/opt/conda
+    export PATH=$CONDA_DIR/bin:$PATH
+
+%post
+    set -e
+    echo "=== [bevfusion] %post start ==="
+    export DEBIAN_FRONTEND=noninteractive
+    export CONDA_DIR=/opt/conda
+
+    echo "=== 安装系统依赖（apt） ==="
+    apt-get update && apt-get install -yq wget
+    apt-get install -y build-essential g++ gcc
+    apt-get install -y libgl1-mesa-glx libglib2.0-0
+    apt-get install -y openmpi-bin openmpi-common libopenmpi-dev libgtk2.0-dev git
+    rm -rf /var/lib/apt/lists/*
+
+    echo "=== 安装 Miniconda 到 /opt/conda ==="
+    cd /tmp
+    wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+    bash miniconda.sh -b -p "$CONDA_DIR"
+    rm miniconda.sh
+
+    # 让 conda / pip 在 %post 阶段可用
+    export PATH="$CONDA_DIR/bin:$PATH"
+
+    echo "=== 使用 conda 安装 Python 3.8 ==="
+    conda install -y python=3.8
+
+    echo "=== 使用 conda 安装 PyTorch 1.10.1 + CUDA 11.3 ==="
+    conda install -y pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch
+
+    echo "=== 使用 pip 安装 Python 包 ==="
+    pip install Pillow==8.4.0
+    pip install tqdm
+    pip install torchpack
+    pip install mmcv==1.4.0 mmcv-full==1.4.0 mmdet==2.20.0
+    pip install nuscenes-devkit
+    pip install mpi4py==3.0.3
+    pip install numba==0.48.0
+
+    echo "=== [bevfusion] %post done ==="
+
+%runscript
+    # 你执行 apptainer run/exec 时默认执行的入口
+    echo "Launching BEVFusion env (CUDA 11.3, PyTorch 1.10.1, Python 3.8 in /opt/conda)."
+    echo "TIP: your code is expected to be bind-mounted from host."
+    exec bash "$@"
+
+%help
+    This container provides:
+      - Base image: nvidia/cuda:11.3.1-devel-ubuntu20.04
+      - Miniconda in /opt/conda
+      - Python 3.8
+      - PyTorch 1.10.1, torchvision 0.11.2, torchaudio 0.10.1, CUDA 11.3
+      - Pillow 8.4.0, tqdm, torchpack, mmcv 1.4.0, mmcv-full 1.4.0, mmdet 2.20.0
+      - nuscenes-devkit, mpi4py 3.0.3, numba 0.48.0
+
+    Example:
+      apptainer exec --nv bevfusion.sif python -c "import torch; print(torch.cuda.is_available())"
