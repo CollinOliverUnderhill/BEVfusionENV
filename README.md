@@ -193,6 +193,35 @@ torchpack dist-run -np 8 python tools/train.py configs/nuscenes/seg/fusion-bev25
 
 Note: please run `tools/test.py` separately after training to get the final evaluation metrics.
 
+### K-Radar templates
+
+We include lightweight templates to bootstrap K-Radar support:
+
+- `tools/create_data.py --dataset kradar --root-path <kradar_root> --extra-tag kradar --version <split>` walks a flat scene list (e.g., `<root>/1`, `<root>/2`, …) containing `cam-front/`, `cam-left/`, `cam-right/`, `cam-rear/`, `os1-128/`, `os2-64/`, `radar_tesseract/`, `info_calib/`, `info_label_rev2/`, and optionally `time_info/time_info.csv`. If a `<split>.txt` exists under `<root>`, only the listed scenes are used. Frame IDs are taken from `time_info.csv` (first column) or inferred from radar/lidar filenames, then written to `<out_dir>/kradar_infos_<version>.pkl`.
+- `tools/train_kradar.py <config> --data-root <kradar_root>` mirrors `tools/train.py` but rewrites `data_root/ann_file` entries that still point to `data/nuscenes`, so you can reuse BEVFusion configs while targeting a K-Radar directory tree.
+- `tools/test_kradar.py <config> <checkpoint> --data-root <kradar_root> --eval <metric>` evaluates a trained model with the same path override logic. It accepts the usual `--out`, `--gpu-collect`, and `--fuse-conv-bn` flags.
+
+The generated info dicts expose per-frame paths (lidar, radar, cameras, calibration, labels) keyed by `scene_id` and `frame_id`. Adjust file extensions inside `kradar_converter.py` if your release differs.
+
+### Using ParallelRadarFuser (e.g., for K-Radar)
+
+If you want to keep a dedicated radar branch instead of sharing the same projection weights with other modalities, you can enable the `ParallelRadarFuser` we provide under `mmdet3d/models/fusers/parallel_radar.py`:
+
+- Make sure your dataset pipeline yields a radar BEV tensor in addition to camera/LiDAR features. For nuScenes-style configs this usually means keeping `LoadRadarPointsMultiSweeps` in the pipeline and ensuring `Collect3D` includes `radar`.
+- Point the model fuser to the new module and describe which input index corresponds to radar. A minimal example:
+
+  ```yaml
+  model:
+    fuser:
+      type: ParallelRadarFuser
+      primary_in_channels: [256, 256]  # camera + lidar channels after their necks
+      radar_in_channels: 128           # radar BEV channels
+      out_channels: 256
+      radar_index: -1                  # radar feature is the last element in the list
+  ```
+
+This keeps radar cues on a parallel path while the primary branch fuses other modalities, which is useful for radar-heavy datasets such as K-Radar.
+
 ## Deployment on TensorRT
 [CUDA-BEVFusion](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/tree/master/CUDA-BEVFusion): Best practice for TensorRT, which provides INT8 acceleration solutions and achieves 25fps on ORIN.
 
