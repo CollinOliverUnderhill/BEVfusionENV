@@ -1,6 +1,9 @@
 import argparse
 
-from data_converter import nuscenes_converter as nuscenes_converter
+from data_converter import (
+    nuscenes_converter as nuscenes_converter,
+)
+from data_converter import kradar_converter
 from data_converter.create_gt_database import create_groundtruth_database
 
 
@@ -127,4 +130,13 @@ if __name__ == "__main__":
             out_dir=args.out_dir,
             max_sweeps=args.max_sweeps,
             load_augmented=load_augmented,
+        )
+    elif args.dataset == "kradar":
+        kradar_converter.create_kradar_infos(
+            root_path=args.root_path,
+            info_prefix=args.extra_tag,
+            version=args.version,
+            max_sweeps=args.max_sweeps,
+            out_dir=args.out_dir,
+            workers=args.workers,
         )
